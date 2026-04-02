@@ -163,4 +163,5 @@ Current tests cover tokenizer, index behavior, and ranking.
 
 ## License
 
-License: MIT
+This project is licensed under the MIT License.
+Unless otherwise stated, this license applies to all commits in this repository history.
