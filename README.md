@@ -163,4 +163,4 @@ Current tests cover tokenizer, index behavior, and ranking.
 
 ## License
 
-Add your license here (for example: MIT).
+License: MIT
