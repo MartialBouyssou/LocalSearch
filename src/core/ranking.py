@@ -1,4 +1,3 @@
-"""Ranking algorithms: TF-IDF and BM25."""
 from __future__ import annotations
 
 import math

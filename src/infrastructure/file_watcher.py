@@ -1,4 +1,3 @@
-"""File system watcher with debouncing for incremental indexing."""
 from __future__ import annotations
 
 import threading

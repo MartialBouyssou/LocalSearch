@@ -1,4 +1,3 @@
-"""Incremental indexing service (handles file watcher callbacks)."""
 from __future__ import annotations
 
 from pathlib import Path

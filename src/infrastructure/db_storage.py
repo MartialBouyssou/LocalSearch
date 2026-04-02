@@ -1,4 +1,3 @@
-"""SQLite database storage for inverted index (optimized + lazy upgrades)."""
 from __future__ import annotations
 
 import sqlite3

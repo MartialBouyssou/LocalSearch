@@ -1,4 +1,3 @@
-"""Search context (current directory in index)."""
 from __future__ import annotations
 
 from pathlib import Path

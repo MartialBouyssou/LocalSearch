@@ -1,4 +1,3 @@
-"""Entry point for LocalSearch engine (SQLite, optimized)."""
 from __future__ import annotations
 
 import argparse
