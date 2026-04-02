@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 from pathlib import Path
 import time
 import os
@@ -205,7 +206,7 @@ def clear():
 
 def main() -> None:
     args = build_parser().parse_args()
-
+    
     cfg = Config.load(args.config)
     cfg = cfg.merge_args(args)
 
@@ -214,7 +215,6 @@ def main() -> None:
         return
 
     context = SearchContext(cfg.path)
-    
     _init_readline(context)
 
     db = DBStorage(cfg.db)
@@ -229,9 +229,9 @@ def main() -> None:
 
     if need_index:
         if not db_exists:
-            print(" => LocalSearch — first run, indexing...\n")
+            print(" => LocalSearch -- first run, indexing...\n")
         else:
-            print(" => LocalSearch — reindex\n")
+            print(" => LocalSearch -- reindex\n")
         
         indexing = IndexingService(db_storage=db, extractor=extractor)
         start = time.time()

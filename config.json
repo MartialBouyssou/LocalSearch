@@ -1,14 +1,12 @@
 {
+  "path": ".",
   "db": "search_index.db",
-  "path": "/home/martial",
-  "topk": 10,
-  "commit_every": 500,
-  "max_text_bytes": 2000000,
-  "sample_bytes": 256000,
-  "debounce": 5.0,
-  "no_lazy_upgrade": false,
-  "include_soft_skips": false,
   "no_watch": false,
-  "bm25_k1": 1.5,
-  "bm25_b": 0.75
+  "debounce": 5.0,
+  "topk": 10,
+  "commit_every": null,
+  "max_text_bytes": 2097152,
+  "sample_bytes": 262144,
+  "no_lazy_upgrade": false,
+  "include_soft_skips": false
 }

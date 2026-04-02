@@ -1,7 +1,8 @@
+"""Indexing service for building the search index."""
 from __future__ import annotations
 
-from collections import Counter
 from pathlib import Path
+from collections import Counter
 
 from core.tokenizer import Tokenizer
 from infrastructure.db_storage import DBStorage
@@ -12,7 +13,6 @@ class IndexingService:
     def __init__(self, db_storage: DBStorage, extractor: ContentExtractor):
         self.db = db_storage
         self.extractor = extractor
-        
 
     def index_directory(
         self,
@@ -21,35 +21,30 @@ class IndexingService:
         commit_every: int = 500,
         include_soft_skips: bool = False,
     ) -> int:
-        """
-        Index all files in directory (bulk optimized)
-        """
+        """Index all files in directory."""
+        from infrastructure.file_reader import FileReader
+
+        reader = FileReader()
+        file_list = list(reader.scan_directory(directory, recursive=recursive, include_soft_skips=include_soft_skips))
+        
         self.db.open()
-        self.db.clear_index()
 
         indexed = 0
         batch_docs = 0
 
         self.db.begin()
-        try:
-            for file_path in self.extractor.file_reader.scan_directory(
-                Path(directory),
-                recursive=recursive,
-                include_soft_skips=include_soft_skips,
-            ):
-                try:
-                    st = file_path.stat()
-                    size = st.st_size
-                except OSError:
-                    continue
 
+        for file_path in file_list:
+            try:
                 extracted = self.extractor.extract(file_path)
+                if not extracted.text and not extracted.partial:
+                    continue
 
                 doc_id = self.db.add_document(
                     filename=file_path.name,
                     path=str(file_path.parent),
                     extension=file_path.suffix.lower(),
-                    size=size,
+                    size=file_path.stat().st_size,
                     content_partial=1 if extracted.partial else 0,
                     content_indexed_bytes=len(extracted.text.encode("utf-8", errors="ignore")),
                 )
@@ -71,11 +66,11 @@ class IndexingService:
                     self.db.commit()
                     self.db.begin()
                     batch_docs = 0
-                    print(f"  [*] Indexed {indexed} files...")
 
-            self.db.commit()
-        finally:
-            self.db.close()
+            except (OSError, UnicodeDecodeError, PermissionError):
+                continue
 
-        print(f"  [*] Indexing complete! ({indexed} files indexed)")
+        self.db.commit()
+        self.db.close()
+
         return indexed

@@ -8,6 +8,14 @@ from typing import Iterable, Optional
 
 class DBStorage:
     _db_lock = threading.RLock()
+    
+    PRAGMAS = {
+        "cache_size": -32000,
+        "synchronous": "NORMAL",
+        "journal_mode": "WAL",
+        "temp_store": "MEMORY",
+        "busy_timeout": 15000,
+    }
 
     def __init__(self, db_path: str = "search_index.db"):
         self.db_path = Path(db_path)
@@ -18,18 +26,23 @@ class DBStorage:
             if self.conn is not None:
                 return
 
-            self.conn = sqlite3.connect(str(self.db_path), timeout=10.0)
+            self.conn = sqlite3.connect(
+                str(self.db_path),
+                timeout=self.PRAGMAS["busy_timeout"] / 1000.0,
+                check_same_thread=False
+            )
             self.conn.row_factory = sqlite3.Row
 
             cur = self.conn.cursor()
-            cur.execute("PRAGMA journal_mode=WAL;")
-            cur.execute("PRAGMA synchronous=NORMAL;")
-            cur.execute("PRAGMA temp_store=MEMORY;")
-            cur.execute("PRAGMA cache_size=-200000;")
+            cur.execute(f"PRAGMA cache_size={self.PRAGMAS['cache_size']};")
+            cur.execute(f"PRAGMA synchronous={self.PRAGMAS['synchronous']};")
+            cur.execute(f"PRAGMA journal_mode={self.PRAGMAS['journal_mode']};")
+            cur.execute(f"PRAGMA temp_store={self.PRAGMAS['temp_store']};")
             cur.execute("PRAGMA foreign_keys=ON;")
-            cur.execute("PRAGMA busy_timeout=5000;")
+            cur.execute("PRAGMA page_size=4096;")
+            cur.execute("PRAGMA query_only=OFF;")
+            
             self.conn.commit()
-
             self._init_db()
 
     def close(self) -> None:
@@ -60,7 +73,6 @@ class DBStorage:
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_documents_filename ON documents(filename)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_documents_path ON documents(path)")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS terms (
@@ -76,13 +88,12 @@ class DBStorage:
                 doc_id INTEGER NOT NULL,
                 frequency INTEGER NOT NULL DEFAULT 1,
                 PRIMARY KEY (term_id, doc_id),
-                FOREIGN KEY (term_id) REFERENCES terms(id),
-                FOREIGN KEY (doc_id) REFERENCES documents(id)
+                FOREIGN KEY (term_id) REFERENCES terms(id) ON DELETE CASCADE,
+                FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_postings_term ON postings(term_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_postings_doc ON postings(doc_id)")
-
+        
         self.conn.commit()
 
     def begin(self) -> None:
@@ -159,7 +170,6 @@ class DBStorage:
             )
 
     def delete_postings_for_doc(self, doc_id: int) -> None:
-        """Wipe all postings for a document before rebuilding its content index."""
         with DBStorage._db_lock:
             assert self.conn is not None
             self.conn.execute("DELETE FROM postings WHERE doc_id = ?", (doc_id,))
@@ -239,7 +249,6 @@ class DBStorage:
             return int(cur.fetchone()[0])
 
     def get_avg_indexed_bytes(self) -> float:
-        """Get average indexed bytes across all documents."""
         with DBStorage._db_lock:
             assert self.conn is not None
             cur = self.conn.cursor()
@@ -247,3 +256,9 @@ class DBStorage:
             result = cur.fetchone()
             avg = float(result[0]) if result and result[0] else 256_000
             return avg if avg > 0 else 256_000
+
+    def vacuum(self) -> None:
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            self.conn.execute("VACUUM;")
+            self.conn.commit()
