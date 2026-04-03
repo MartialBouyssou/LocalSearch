@@ -144,6 +144,53 @@ Check reindex progress:
 curl http://localhost:8000/indexing/reindex-status
 ```
 
+## AI-Generated Web Client Example
+
+The `web_client.html` file is an example web interface generated with AI and designed to work with the LocalSearch API.
+It includes a simple HTML + CSS layout and a minimal JavaScript client for search requests.
+
+To make the web client work on your machine, the API server must be running locally.
+
+### Minimal API connection
+
+```js
+const API_URL = 'http://localhost:8000';
+```
+
+### Minimal search request
+
+```js
+const response = await fetch(`${API_URL}/search`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    query: query,
+    top_k: topk
+  })
+});
+```
+
+### Minimal health check
+
+```js
+const response = await fetch(`${API_URL}/health`);
+```
+
+### How to use it
+
+1. Start the API server:
+
+```bash
+python api_server.py
+```
+
+2. Open `web_client.html` in your browser.
+3. Make sure the `API_URL` constant matches your local API server address.
+
+If you want to adapt the client, you only need the HTML file, the CSS styles, and the small fetch-based JavaScript calls shown above.
+
 ## Interactive Commands
 
 In interactive mode:

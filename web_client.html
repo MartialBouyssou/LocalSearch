@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalSearch - Web Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .search-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .search-group {
+            margin-bottom: 20px;
+        }
+
+        .search-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 0.95em;
+        }
+
+        .search-input-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .path-filter {
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            transition: border-color 0.3s;
+        }
+
+        .path-filter:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-search {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-search:active {
+            transform: translateY(0);
+        }
+
+        .btn-clear {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .btn-clear:hover {
+            background: #dee2e6;
+        }
+
+        .status-section {
+            padding: 20px 30px;
+            background: #e7f5ff;
+            border-bottom: 1px solid #d0ebff;
+            display: none;
+        }
+
+        .status-section.show {
+            display: block;
+        }
+
+        .status-text {
+            color: #0c63e4;
+            font-size: 0.95em;
+        }
+
+        .results-section {
+            padding: 30px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .results-header h2 {
+            font-size: 1.3em;
+            color: #333;
+        }
+
+        .results-count {
+            background: #667eea;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .result-item {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .result-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .result-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+
+        .result-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .result-meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-meta-label {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .result-meta-value {
+            font-size: 0.95em;
+            color: #333;
+            word-break: break-all;
+            margin-top: 4px;
+        }
+
+        .result-score {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .no-results-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .error-section {
+            padding: 20px 30px;
+            background: #ffe0e0;
+            border-bottom: 1px solid #ffcccc;
+            color: #c92a2a;
+            border-radius: 8px;
+            margin: 20px;
+            display: none;
+        }
+
+        .error-section.show {
+            display: block;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+            color: #667eea;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: #e7f5ff;
+            border-left: 4px solid #0c63e4;
+            padding: 15px;
+            border-radius: 8px;
+            color: #0c63e4;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .header p {
+                font-size: 1em;
+            }
+
+            .search-input-wrapper {
+                flex-direction: column;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .result-meta {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 LocalSearch</h1>
+            <p>Web Client for LocalSearch API</p>
+        </div>
+
+        <div class="search-section">
+            <div class="info-box">
+                💡 Make sure the API is running: <code>python api_server.py</code>
+            </div>
+
+            <div class="search-group">
+                <label for="query">Search Query</label>
+                <div class="search-input-wrapper">
+                    <input 
+                        type="text" 
+                        id="query" 
+                        placeholder="Enter search terms (e.g., 'python', 'async', 'database')"
+                    >
+                    <input 
+                        type="text" 
+                        id="topk" 
+                        class="path-filter"
+                        placeholder="Max results (default: 10)"
+                        value="10"
+                        style="max-width: 120px;"
+                    >
+                </div>
+            </div>
+
+            <div class="search-group">
+                <label for="path-filter">Filter by Path (optional)</label>
+                <input 
+                    type="text" 
+                    id="path-filter" 
+                    class="path-filter"
+                    placeholder="e.g., /home/user/projects or leave empty for all"
+                >
+            </div>
+
+            <div class="button-group">
+                <button class="btn-search" onclick="performSearch()">Search</button>
+                <button class="btn-clear" onclick="clearSearch()">Clear</button>
+            </div>
+        </div>
+
+        <div id="error-section" class="error-section"></div>
+        <div id="status-section" class="status-section">
+            <div class="status-text" id="status-text"></div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Searching...</div>
+        </div>
+
+        <div id="results-section" class="results-section">
+            <div id="results-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+
+        const queryInput = document.getElementById('query');
+        const topkInput = document.getElementById('topk');
+        const pathFilterInput = document.getElementById('path-filter');
+        const loadingDiv = document.getElementById('loading');
+        const resultsSection = document.getElementById('results-section');
+        const resultsContent = document.getElementById('results-content');
+        const errorSection = document.getElementById('error-section');
+        const statusSection = document.getElementById('status-section');
+        const statusText = document.getElementById('status-text');
+
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        async function performSearch() {
+            const query = queryInput.value.trim();
+            const topk = parseInt(topkInput.value) || 10;
+            const pathFilter = pathFilterInput.value.trim();
+
+            if (!query) {
+                showError('Please enter a search query');
+                return;
+            }
+
+            clearError();
+            showLoading(true);
+            resultsContent.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_URL}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: topk
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                let results = data.results;
+                if (pathFilter) {
+                    results = results.filter(r => 
+                        r.path.toLowerCase().includes(pathFilter.toLowerCase())
+                    );
+                }
+
+                displayResults(results, data.elapsed_time, query);
+            } catch (error) {
+                showError(`Error: ${error.message}<br>Make sure the API server is running at ${API_URL}`);
+                console.error('Search error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayResults(results, elapsedTime, query) {
+            if (results.length === 0) {
+                resultsContent.innerHTML = `
+                    <div class="no-results">
+                        <div class="no-results-icon">📭</div>
+                        <h3>No results found</h3>
+                        <p>Try different search terms or adjust your filters</p>
+                    </div>
+                `;
+                showStatus(`Search completed in ${elapsedTime.toFixed(2)}s - No results found for "${query}"`);
+                return;
+            }
+
+            resultsContent.innerHTML = `
+                <div class="results-header">
+                    <h2>Search Results for "<strong>${escapeHtml(query)}</strong>"</h2>
+                    <div class="results-count">${results.length}</div>
+                </div>
+                <div class="results-list" id="results-list"></div>
+            `;
+
+            const resultsList = document.getElementById('results-list');
+            results.forEach((result, index) => {
+                const resultItem = createResultItem(result, index + 1);
+                resultsList.appendChild(resultItem);
+            });
+
+            showStatus(`Found ${results.length} result(s) in ${elapsedTime.toFixed(2)}s`);
+        }
+
+        function createResultItem(result, index) {
+            const div = document.createElement('div');
+            div.className = 'result-item';
+            
+            const scorePercentage = Math.min(100, Math.round(result.score * 100));
+            
+            div.innerHTML = `
+                <div class="result-title">${index}. ${escapeHtml(result.filename)}</div>
+                <div class="result-meta">
+                    <div class="result-meta-item">
+                        <div class="result-meta-label">Path</div>
+                        <div class="result-meta-value">${escapeHtml(result.path)}</div>
+                    </div>
+                    <div class="result-meta-item">
+                        <div class="result-meta-label">Extension</div>
+                        <div class="result-meta-value">${escapeHtml(result.extension || 'N/A')}</div>
+                    </div>
+                    <div class="result-meta-item">
+                        <div class="result-meta-label">Relevance Score</div>
+                        <div class="result-meta-value">
+                            <div class="result-score">${result.score.toFixed(4)} (${scorePercentage}%)</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        function clearSearch() {
+            queryInput.value = '';
+            topkInput.value = '10';
+            pathFilterInput.value = '';
+            resultsContent.innerHTML = '';
+            clearError();
+            clearStatus();
+            queryInput.focus();
+        }
+
+        function showLoading(show) {
+            loadingDiv.classList.toggle('show', show);
+        }
+
+        function showError(message) {
+            errorSection.innerHTML = `<strong>❌ Error:</strong> ${message}`;
+            errorSection.classList.add('show');
+        }
+
+        function clearError() {
+            errorSection.classList.remove('show');
+        }
+
+        function showStatus(message) {
+            statusText.textContent = `✅ ${message}`;
+            statusSection.classList.add('show');
+        }
+
+        function clearStatus() {
+            statusSection.classList.remove('show');
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        window.addEventListener('load', () => {
+            queryInput.focus();
+        });
+    </script>
+</body>
+</html>
