@@ -4,9 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 from collections import Counter
 
-from core.tokenizer import Tokenizer
-from infrastructure.db_storage import DBStorage
-from infrastructure.content_extractor import ContentExtractor
+from src.core.tokenizer import Tokenizer
+from src.infrastructure.db_storage import DBStorage
+from src.infrastructure.content_extractor import ContentExtractor
 
 
 class IndexingService:
@@ -22,7 +22,7 @@ class IndexingService:
         include_soft_skips: bool = False,
     ) -> int:
         """Index all files in directory."""
-        from infrastructure.file_reader import FileReader
+        from src.infrastructure.file_reader import FileReader
 
         reader = FileReader()
         file_list = list(reader.scan_directory(directory, recursive=recursive, include_soft_skips=include_soft_skips))

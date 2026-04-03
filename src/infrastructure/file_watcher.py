@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import threading
-import time
-from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Optional
 

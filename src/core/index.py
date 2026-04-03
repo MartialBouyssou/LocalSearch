@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, Set, List
-from infrastructure.db_storage import DBStorage
+from src.infrastructure.db_storage import DBStorage
 
 
 class InvertedIndex:

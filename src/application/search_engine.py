@@ -3,12 +3,12 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
-from core.models import SearchResult, Document
-from core.tokenizer import Tokenizer
-from core.ranking import BM25Ranker
-from core.index import InvertedIndex
-from infrastructure.db_storage import DBStorage
-from infrastructure.content_extractor import ContentExtractor
+from src.core.models import SearchResult, Document
+from src.core.tokenizer import Tokenizer
+from src.core.ranking import BM25Ranker
+from src.core.index import InvertedIndex
+from src.infrastructure.db_storage import DBStorage
+from src.infrastructure.content_extractor import ContentExtractor
 
 
 class SearchEngine:

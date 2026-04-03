@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import Optional
-from core.index import InvertedIndex
+from src.core.index import InvertedIndex
 
 
 class DiskStorage:

@@ -12,6 +12,7 @@ It builds an index in SQLite, ranks results with BM25, and supports incremental 
 - Incremental indexing with filesystem watcher and debounce
 - SQLite-based persistence
 - Lazy upgrade for partially indexed large documents
+- REST API (FastAPI) for health, search, and indexing operations
 
 ## Project Status
 
@@ -32,6 +33,14 @@ cd LocalSearch
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirement.txt
+```
+
+### API dependencies
+
+If you want to use the HTTP API, install API dependencies too:
+
+```bash
+pip install -r requirement_api.txt
 ```
 
 ## Quick Start
@@ -60,7 +69,7 @@ Example:
 ### 2. First run (auto-index + interactive mode)
 
 ```bash
-python src/main.py
+python start.py
 ```
 
 On first run, LocalSearch detects that the DB does not exist and performs initial indexing.
@@ -68,13 +77,71 @@ On first run, LocalSearch detects that the DB does not exist and performs initia
 ### 3. One-shot search
 
 ```bash
-python src/main.py --search "your query" --topk 10
+python start.py --search "your query" --topk 10
 ```
 
 ### 4. Force full reindex
 
 ```bash
-python src/main.py --reindex
+python start.py --reindex
+```
+
+## API Usage
+
+### Start API server
+
+```bash
+python api_server.py --config config.json --host 0.0.0.0 --port 8000
+```
+
+Optional development mode:
+
+```bash
+python api_server.py --reload
+```
+
+### API Endpoints
+
+- GET /health
+- POST /search
+- POST /indexing/reindex
+- GET /indexing/status
+- GET /indexing/reindex-status
+
+### Example requests
+
+Health check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Search:
+
+```bash
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query":"python tokenizer", "top_k":10}'
+```
+
+Trigger full reindex in background:
+
+```bash
+curl -X POST http://localhost:8000/indexing/reindex \
+  -H "Content-Type: application/json" \
+  -d '{"include_soft_skips": false}'
+```
+
+Check index status:
+
+```bash
+curl http://localhost:8000/indexing/status
+```
+
+Check reindex progress:
+
+```bash
+curl http://localhost:8000/indexing/reindex-status
 ```
 
 ## Interactive Commands
@@ -138,7 +205,10 @@ Examples:
 - src/core: tokenizer, index abstraction, ranking, models
 - src/application: indexing, incremental indexing, search orchestration
 - src/infrastructure: SQLite storage, extraction, file scanning, watcher, config
-- src/main.py: CLI entry point and interactive shell
+- src/api: FastAPI app factory, routes, and request/response models
+- start.py: CLI launcher from project root
+- src/main.py: CLI implementation and interactive shell
+- api_server.py: API server launcher (uvicorn)
 
 ## Running Tests
 
