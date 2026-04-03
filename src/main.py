@@ -8,15 +8,15 @@ import os
 import readline
 import atexit
 
-from application.indexing_service import IndexingService
-from application.incremental_indexing_service import IncrementalIndexingService
-from application.search_engine import SearchEngine
-from infrastructure.db_storage import DBStorage
-from infrastructure.file_reader import FileReader
-from infrastructure.content_extractor import ContentExtractor, ExtractorConfig
-from infrastructure.file_watcher import DebouncedFileWatcher
-from infrastructure.config import Config
-from infrastructure.search_context import SearchContext
+from src.application.indexing_service import IndexingService
+from src.application.incremental_indexing_service import IncrementalIndexingService
+from src.application.search_engine import SearchEngine
+from src.infrastructure.db_storage import DBStorage
+from src.infrastructure.file_reader import FileReader
+from src.infrastructure.content_extractor import ContentExtractor, ExtractorConfig
+from src.infrastructure.file_watcher import DebouncedFileWatcher
+from src.infrastructure.config import Config
+from src.infrastructure.search_context import SearchContext
 
 
 def _init_readline(search_context: SearchContext) -> None:
@@ -292,8 +292,4 @@ def main() -> None:
             if watcher:
                 watcher.stop_watching()
             engine.close()
-
-
-if __name__ == "__main__":
-    clear()
-    main()
+            

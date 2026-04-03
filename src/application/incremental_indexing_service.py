@@ -5,9 +5,9 @@ from collections import Counter
 import logging
 import sqlite3
 
-from core.tokenizer import Tokenizer
-from infrastructure.db_storage import DBStorage
-from infrastructure.content_extractor import ContentExtractor
+from src.core.tokenizer import Tokenizer
+from src.infrastructure.db_storage import DBStorage
+from src.infrastructure.content_extractor import ContentExtractor
 
 logger = logging.getLogger("incremental_indexing")
 logger.setLevel(logging.WARNING)
