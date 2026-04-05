@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 @dataclass
@@ -22,6 +23,7 @@ class SearchResult:
     document: Document
     score: float
     matched_terms: list[str]
+    metadata: Optional[dict] = None
     
     def __lt__(self, other):
         """Enable sorting by score (descending)"""

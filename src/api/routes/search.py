@@ -17,7 +17,7 @@ def init_search(engine: SearchEngine, config: Config):
 @router.post("", response_model=SearchResponse)
 async def search(request: SearchRequest):
     """
-    Effectue une recherche dans l'index.
+    Search
     """
     if _engine is None:
         raise HTTPException(status_code=500, detail="Search engine not initialized")
@@ -30,16 +30,19 @@ async def search(request: SearchRequest):
         results = _engine.search(
             request.query,
             top_k=request.top_k,
-            lazy_upgrade=not _config.no_lazy_upgrade
+            lazy_upgrade=not _config.no_lazy_upgrade,
+            use_fuzzy=request.use_fuzzy,
+            fuzzy_threshold=request.fuzzy_threshold,
         )
         elapsed = time.time() - start
         
+        # Convertir en modèle Pydantic
         doc_results = [
             DocumentResult(
                 filename=r.document.filename,
                 path=r.document.path,
                 extension=r.document.extension,
-                score=r.score
+                score=r.score  # Maintenant c'est le score fuzzy !
             )
             for r in results
         ]
@@ -51,3 +54,11 @@ async def search(request: SearchRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
+    
+@router.get("/fuzzy-info")
+async def fuzzy_info(term1: str, term2: str):
+    """Get fuzzy matching details between two terms."""
+    if _engine is None:
+        raise HTTPException(status_code=500, detail="Search engine not initialized")
+    
+    return _engine.get_fuzzy_info(term1, term2)

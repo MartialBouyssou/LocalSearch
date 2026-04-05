@@ -257,6 +257,22 @@ class DBStorage:
             avg = float(result[0]) if result and result[0] else 256_000
             return avg if avg > 0 else 256_000
 
+    def get_all_terms(self) -> list[str]:
+        """
+        Return every distinct term stored in the index.
+
+        Used by the fuzzy search path to find index terms that are
+        close (in edit-distance) to the query terms typed by the user.
+
+        Returns:
+            List of all indexed term strings.
+        """
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            cur = self.conn.cursor()
+            cur.execute("SELECT term FROM terms")
+            return [str(row[0]) for row in cur.fetchall()]
+
     def vacuum(self) -> None:
         with DBStorage._db_lock:
             assert self.conn is not None

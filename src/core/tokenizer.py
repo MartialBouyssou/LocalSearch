@@ -1,5 +1,4 @@
 import re
-from typing import List
 
 
 class Tokenizer:
@@ -9,7 +8,7 @@ class Tokenizer:
     WHITESPACE_PATTERN = re.compile(r'\s+')
     
     @staticmethod
-    def tokenize(text: str) -> List[str]:
+    def tokenize(text: str) -> list[str]:
         """
         Tokenize and normalize text
         
@@ -17,7 +16,7 @@ class Tokenizer:
             text: Input text to tokenize
             
         Returns:
-            List of normalized tokens
+            list of normalized tokens
         """
         if not text:
             return []
@@ -33,7 +32,7 @@ class Tokenizer:
         return tokens
     
     @staticmethod
-    def tokenize_filename(filename: str) -> List[str]:
+    def tokenize_filename(filename: str) -> list[str]:
         """Tokenize filename separately"""
         name = filename.rsplit('.', 1)[0]
         name = re.sub(r'[-_.]', ' ', name)

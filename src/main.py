@@ -107,6 +107,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--include-soft-skips", action="store_true", help="Include .venv, node_modules, .git, etc.")
     p.add_argument("--no-watch", action="store_true", help="Disable file watcher in interactive mode.")
     p.add_argument("--debounce", type=float, default=None, help="Debounce seconds for file watcher.")
+    p.add_argument("--use-fuzzy", type=bool, default=None, help="Enable fuzzy matching (default: true).")
+    p.add_argument("--fuzzy-lambda", type=float, default=None, help="Fuzzy penalty parameter (3=lenient, 5=balanced, 7=strict).")
+    p.add_argument("--fuzzy-threshold", type=float, default=None, help="Fuzzy distance threshold (0.0-1.0).")
     p.add_argument("--save-config", action="store_true", help="Save current config to file and exit.")
     return p
 
@@ -150,6 +153,7 @@ def interactive_loop(
                     - :pwd     Show the current directory
                     - :cd PATH Change the current directory
                     - :clear   Clear the screen
+                    - :fuzzy   Toggle fuzzy matching on/off
                     - :quit    Exit the application
                     - :q       Exit the application
                     - :exit    Exit the application
@@ -162,6 +166,12 @@ def interactive_loop(
                     Tip:
                     - Use Tab after :cd to autocomplete directories.
                 """)
+            continue
+
+        if q == ":fuzzy":
+            cfg = Config(**{**asdict(cfg), "use_fuzzy": not cfg.use_fuzzy})
+            fuzzy_status = "enabled" if cfg.use_fuzzy else "disabled"
+            print(f"[*] Fuzzy matching {fuzzy_status}\n")
             continue
 
         if q.startswith(":cd"):

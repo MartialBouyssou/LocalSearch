@@ -1,10 +1,10 @@
 {
-  "path": ".",
+  "path": "/home/martial",
   "db": "search_index.db",
   "no_watch": false,
   "debounce": 5.0,
   "topk": 10,
-  "commit_every": null,
+  "commit_every": 500,
   "max_text_bytes": 2097152,
   "sample_bytes": 262144,
   "no_lazy_upgrade": false,

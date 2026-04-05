@@ -18,6 +18,9 @@ class Config:
     no_lazy_upgrade: bool = False
     include_soft_skips: bool = False
     no_watch: bool = False
+    use_fuzzy: bool = True
+    fuzzy_lambda: float = 5.0
+    fuzzy_threshold: float = 0.5
 
     @classmethod
     def load(cls, config_file: str = "config.json") -> Config:
@@ -41,7 +44,6 @@ class Config:
         config_path = Path(config_file)
         with open(config_path, "w") as f:
             json.dump(asdict(self), f, indent=2)
-        print(f"[*] Configuration saved to {config_file}")
 
     def merge_args(self, args) -> Config:
         """Merge CLI args into config (args override config file)."""
