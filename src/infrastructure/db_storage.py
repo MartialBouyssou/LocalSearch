@@ -181,6 +181,77 @@ class DBStorage:
             cur.execute("SELECT COUNT(*) FROM documents")
             return int(cur.fetchone()[0])
 
+    def get_postings_batch(
+        self, terms: list[str], doc_ids: list[int]
+    ) -> dict[str, dict[int, int]]:
+        """
+        Fetch all term frequencies for a set of (terms, doc_ids) in one query.
+
+        Returns a nested mapping  term -> {doc_id -> frequency}  so the BM25
+        loop can do pure Python arithmetic without any further DB round-trips.
+
+        Args:
+            terms:   Query terms to look up.
+            doc_ids: Candidate document IDs.
+
+        Returns:
+            Nested dict  {term: {doc_id: frequency}}.
+        """
+        if not terms or not doc_ids:
+            return {}
+
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            term_placeholders = ",".join("?" for _ in terms)
+            doc_placeholders = ",".join("?" for _ in doc_ids)
+            cur = self.conn.cursor()
+            cur.execute(
+                f"""
+                SELECT t.term, p.doc_id, p.frequency
+                FROM postings p
+                JOIN terms t ON t.id = p.term_id
+                WHERE t.term IN ({term_placeholders})
+                  AND p.doc_id IN ({doc_placeholders})
+                """,
+                [*terms, *doc_ids],
+            )
+            result: dict[str, dict[int, int]] = {}
+            for term, doc_id, freq in cur.fetchall():
+                result.setdefault(str(term), {})[int(doc_id)] = int(freq)
+            return result
+
+    def get_documents_batch(self, doc_ids: list[int]) -> dict[int, dict]:
+        """
+        Fetch multiple documents in a single SQL query.
+
+        Replaces repeated single-row lookups inside the ranking loop, reducing
+        N individual round-trips to one batched SELECT.
+
+        Args:
+            doc_ids: List of document IDs to fetch.
+
+        Returns:
+            Mapping doc_id -> document dict.  Missing IDs are absent from the
+            result (no KeyError on the caller side).
+        """
+        if not doc_ids:
+            return {}
+
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            placeholders = ",".join("?" for _ in doc_ids)
+            cur = self.conn.cursor()
+            cur.execute(
+                f"""
+                SELECT id, filename, path, extension, size,
+                       content_partial, content_indexed_bytes
+                FROM documents
+                WHERE id IN ({placeholders})
+                """,
+                doc_ids,
+            )
+            return {int(row["id"]): dict(row) for row in cur.fetchall()}
+
     def get_document(self, doc_id: int) -> Optional[dict]:
         with DBStorage._db_lock:
             assert self.conn is not None
@@ -256,6 +327,69 @@ class DBStorage:
             result = cur.fetchone()
             avg = float(result[0]) if result and result[0] else 256_000
             return avg if avg > 0 else 256_000
+
+    def get_doc_token_counts_batch(self, doc_ids: list[int]) -> dict[int, int]:
+        """
+        Compute the total token count for each document in one query.
+
+        The token count is the sum of all term frequencies stored in postings
+        for a given document.  This is the correct document-length measure for
+        BM25: using raw bytes (content_indexed_bytes) skews scores for documents
+        with very dense or very sparse text (e.g. PDFs with images).
+
+        Args:
+            doc_ids: Document IDs to compute counts for.
+
+        Returns:
+            Mapping doc_id -> total token count.  Documents with no postings
+            return 1 to avoid division by zero in BM25.
+        """
+        if not doc_ids:
+            return {}
+
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            placeholders = ",".join("?" for _ in doc_ids)
+            cur = self.conn.cursor()
+            cur.execute(
+                f"""
+                SELECT doc_id, SUM(frequency) as token_count
+                FROM postings
+                WHERE doc_id IN ({placeholders})
+                GROUP BY doc_id
+                """,
+                doc_ids,
+            )
+            result = {int(row[0]): max(int(row[1]), 1) for row in cur.fetchall()}
+            for doc_id in doc_ids:
+                result.setdefault(doc_id, 1)
+            return result
+
+    def get_avg_token_count(self) -> float:
+        """
+        Compute the average token count across all indexed documents.
+
+        Used as the ``avgdl`` parameter in BM25 in place of average byte size,
+        giving a length measure that is independent of file encoding and format.
+
+        Returns:
+            Average token count, or 500.0 if the index is empty.
+        """
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT AVG(token_count) FROM (
+                    SELECT doc_id, SUM(frequency) as token_count
+                    FROM postings
+                    GROUP BY doc_id
+                )
+                """
+            )
+            row = cur.fetchone()
+            avg = float(row[0]) if row and row[0] else 500.0
+            return avg if avg > 0 else 500.0
 
     def get_all_terms(self) -> list[str]:
         """

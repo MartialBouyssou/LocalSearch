@@ -53,7 +53,8 @@ class SearchEngine:
         self.index = InvertedIndex(self.db)
         self.ranker = BM25Ranker(self.index)
         self.fuzzy_scorer = FuzzyScorer(lambda_param=fuzzy_lambda) if enable_fuzzy else None
-        
+        self._cached_index_terms: list[str] | None = None
+
         if self.index.doc_count == 0:
             raise RuntimeError("Index is empty. Please index files first.")
 
@@ -118,8 +119,8 @@ class SearchEngine:
                 lazy_upgrade=lazy_upgrade,
                 top_k=top_k,
             )
-        
-        return results
+
+        return self._deduplicate(results)
 
     def _expand_terms_with_fuzzy(
         self,
@@ -129,30 +130,52 @@ class SearchEngine:
         """
         Map each query term to the list of index terms that are close enough.
 
-        For each query term we iterate over all indexed terms and keep those
-        whose normalized Levenshtein distance is within *fuzzy_threshold*.
-        A query term also always maps to itself so that exact matches are
-        included regardless of the threshold.
+        Optimisations (in order of impact):
+
+        1. **Exact-match skip**: if the query term exists verbatim in the index
+           we return it as-is immediately, with zero Levenshtein work.  This is
+           the common case and makes exact searches essentially free.
+
+        2. **Term cache**: index terms are loaded once per SearchEngine instance
+           and reused across queries.  On a 50k-term index this saves one SQL
+           round-trip per search.
+
+        3. **Length pre-filter**: a term whose length differs from the query by
+           more than ``floor(threshold * q_len)`` can never satisfy the threshold
+           (the normalised distance would exceed it by definition).  This
+           eliminates the vast majority of candidates before any DP work.
 
         Args:
-            query_terms: Tokenized terms from the user query.
-            fuzzy_threshold: Maximum allowed normalized distance (0-1).
+            query_terms:     Tokenized terms from the user query.
+            fuzzy_threshold: Maximum allowed normalised Levenshtein distance (0–1).
 
         Returns:
-            Mapping  query_term -> [matching_index_terms].
+            Mapping  query_term -> [matching index terms].
         """
-        all_index_terms = self.index.get_all_terms()
+        if self._cached_index_terms is None:
+            self._cached_index_terms = self.index.get_all_terms()
+
+        index_terms = self._cached_index_terms
+        index_term_set = set(index_terms)
         expansion: dict[str, list[str]] = {}
 
         for query_term in query_terms:
+            if query_term in index_term_set:
+                expansion[query_term] = [query_term]
+                continue
+
+            q_len = len(query_term)
+            max_edits = int(fuzzy_threshold * q_len)
+
             matched: list[str] = []
-            for index_term in all_index_terms:
+            for index_term in index_terms:
+                if abs(len(index_term) - q_len) > max_edits:
+                    continue
                 dist = FuzzyDistance.normalized_fuzzy_distance(query_term, index_term)
                 if dist <= fuzzy_threshold:
                     matched.append(index_term)
-            if not matched:
-                matched = [query_term]
-            expansion[query_term] = matched
+
+            expansion[query_term] = matched or [query_term]
 
         return expansion
 
@@ -345,6 +368,29 @@ class SearchEngine:
             "is_exact_match": distance == 0,
             "lambda": self.fuzzy_lambda,
         }
+
+    def _deduplicate(self, results: list[SearchResult]) -> list[SearchResult]:
+        """
+        Remove duplicate results caused by the same physical file being indexed
+        under multiple paths (e.g. symlinks, re-indexing runs).
+
+        The deduplication key is ``(filename, path)``.  The first occurrence
+        (highest score, since the list is already sorted) is kept.
+
+        Args:
+            results: Sorted list of SearchResult objects.
+
+        Returns:
+            Deduplicated list preserving original order.
+        """
+        seen: set[tuple[str, str]] = set()
+        unique: list[SearchResult] = []
+        for result in results:
+            key = (result.document.filename, result.document.path)
+            if key not in seen:
+                seen.add(key)
+                unique.append(result)
+        return unique
 
     def _upgrade_document_content(self, doc_id: int, doc_data: dict) -> None:
         """

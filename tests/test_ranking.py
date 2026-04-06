@@ -115,8 +115,16 @@ class TestBM25Ranker(unittest.TestCase):
         self.assertEqual(ranker.avg_doc_length, ranker.avg_doc_length)
 
     def test_length_normalisation_penalises_long_documents(self):
-        doc_short = _index_document(self.db, "a.txt", ["python"] * 3, size=100)
-        doc_long = _index_document(self.db, "b.txt", ["python"] * 3, size=100_000)
+        """
+        A document with many tokens (long) should score lower than a short one
+        for the same query term frequency, because BM25 normalises by token count.
+        """
+        doc_short = _index_document(self.db, "a.txt", ["python"] * 3 + ["other"] * 2, size=100)
+        doc_long = _index_document(
+            self.db, "b.txt",
+            ["python"] * 3 + ["padding"] * 200,
+            size=100,
+        )
         ranker = BM25Ranker(self.index)
         results = dict(ranker.rank_documents([doc_short, doc_long], ["python"]))
         self.assertGreater(results[doc_short], results[doc_long])
