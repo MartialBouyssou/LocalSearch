@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from typing import Dict, Set, List
 from src.infrastructure.db_storage import DBStorage
 

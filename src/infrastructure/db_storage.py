@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import sqlite3
 import threading
 from pathlib import Path
@@ -8,7 +7,6 @@ from typing import Iterable, Optional
 
 class DBStorage:
     _db_lock = threading.RLock()
-    
     PRAGMAS = {
         "cache_size": -32000,
         "synchronous": "NORMAL",
@@ -25,14 +23,12 @@ class DBStorage:
         with DBStorage._db_lock:
             if self.conn is not None:
                 return
-
             self.conn = sqlite3.connect(
                 str(self.db_path),
                 timeout=self.PRAGMAS["busy_timeout"] / 1000.0,
-                check_same_thread=False
+                check_same_thread=False,
             )
             self.conn.row_factory = sqlite3.Row
-
             cur = self.conn.cursor()
             cur.execute(f"PRAGMA cache_size={self.PRAGMAS['cache_size']};")
             cur.execute(f"PRAGMA synchronous={self.PRAGMAS['synchronous']};")
@@ -41,7 +37,6 @@ class DBStorage:
             cur.execute("PRAGMA foreign_keys=ON;")
             cur.execute("PRAGMA page_size=4096;")
             cur.execute("PRAGMA query_only=OFF;")
-            
             self.conn.commit()
             self._init_db()
 
@@ -59,7 +54,6 @@ class DBStorage:
     def _init_db(self) -> None:
         assert self.conn is not None
         cur = self.conn.cursor()
-
         cur.execute("""
             CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY,
@@ -71,17 +65,17 @@ class DBStorage:
                 content_indexed_bytes INTEGER NOT NULL DEFAULT 0,
                 indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_documents_filename ON documents(filename)")
-
+            """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documents_filename ON documents(filename)"
+        )
         cur.execute("""
             CREATE TABLE IF NOT EXISTS terms (
                 id INTEGER PRIMARY KEY,
                 term TEXT NOT NULL UNIQUE
             )
-        """)
+            """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_terms_term ON terms(term)")
-
         cur.execute("""
             CREATE TABLE IF NOT EXISTS postings (
                 term_id INTEGER NOT NULL,
@@ -91,9 +85,8 @@ class DBStorage:
                 FOREIGN KEY (term_id) REFERENCES terms(id) ON DELETE CASCADE,
                 FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
             )
-        """)
+            """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_postings_term ON postings(term_id)")
-        
         self.conn.commit()
 
     def begin(self) -> None:
@@ -132,11 +125,20 @@ class DBStorage:
                 INSERT INTO documents (filename, path, extension, size, content_partial, content_indexed_bytes)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (filename, path, extension, size, content_partial, content_indexed_bytes),
+                (
+                    filename,
+                    path,
+                    extension,
+                    size,
+                    content_partial,
+                    content_indexed_bytes,
+                ),
             )
             return int(cur.lastrowid)
 
-    def update_document_content_flags(self, doc_id: int, *, content_partial: int, content_indexed_bytes: int) -> None:
+    def update_document_content_flags(
+        self, doc_id: int, *, content_partial: int, content_indexed_bytes: int
+    ) -> None:
         with DBStorage._db_lock:
             assert self.conn is not None
             self.conn.execute(
@@ -197,11 +199,11 @@ class DBStorage:
             return dict(row) if row else None
 
     def search_terms(self, terms: list[str]) -> dict[int, list[str]]:
+        """Original search (kept for compatibility)."""
         with DBStorage._db_lock:
             assert self.conn is not None
             if not terms:
                 return {}
-
             placeholders = ",".join("?" for _ in terms)
             sql = f"""
                 SELECT p.doc_id, t.term
@@ -211,11 +213,125 @@ class DBStorage:
             """
             cur = self.conn.cursor()
             cur.execute(sql, terms)
-
             out: dict[int, list[str]] = {}
             for doc_id, term in cur.fetchall():
                 out.setdefault(int(doc_id), []).append(str(term))
             return out
+
+    def search_exact_all_terms(
+        self, terms: list[str], limit: int = 100
+    ) -> dict[int, list[str]]:
+        """
+        Level 1: EXACT match - documents containing ALL query terms.
+        Returns docs that have every single query term.
+        """
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            if not terms:
+                return {}
+            placeholders = ",".join("?" for _ in terms)
+            sql = f"""
+                SELECT p.doc_id, t.term
+                FROM postings p
+                JOIN terms t ON t.id = p.term_id
+                WHERE t.term IN ({placeholders})
+                GROUP BY p.doc_id
+                HAVING COUNT(DISTINCT p.term_id) = {len(terms)}
+                LIMIT {limit}
+            """
+            cur = self.conn.cursor()
+            cur.execute(sql, terms)
+            out: dict[int, list[str]] = {}
+            for doc_id, term in cur.fetchall():
+                out.setdefault(int(doc_id), []).append(str(term))
+            return out
+
+    def search_prefix_terms(
+        self, terms: list[str], limit: int = 500
+    ) -> dict[int, list[str]]:
+        """
+        Level 2: PREFIX match - documents containing ANY query term or prefix.
+        Uses LIKE for efficient prefix search on indexed terms.
+        """
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            if not terms:
+                return {}
+            where_parts = ["t.term LIKE ?" for _ in terms]
+            where_clause = " OR ".join(where_parts)
+            like_terms = [f"{t}%" for t in terms]
+            sql = f"""
+                SELECT p.doc_id, t.term
+                FROM postings p
+                JOIN terms t ON t.id = p.term_id
+                WHERE {where_clause}
+                LIMIT {limit}
+            """
+            cur = self.conn.cursor()
+            cur.execute(sql, like_terms)
+            out: dict[int, list[str]] = {}
+            for doc_id, term in cur.fetchall():
+                out.setdefault(int(doc_id), []).append(str(term))
+            return out
+
+    def search_documents_by_filename_exact(self, filename: str) -> list[int]:
+        """
+        Search for exact or partial filename match (case-insensitive).
+        Handles special characters and variations.
+        """
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            cur = self.conn.cursor()
+            filename_clean = "".join(
+                c for c in filename.lower() if c.isalnum() or c in ".-_"
+            )
+            if not filename_clean:
+                return []
+            cur.execute(
+                """
+                SELECT DISTINCT id FROM documents
+                WHERE
+                    LOWER(filename) = ?
+                    OR LOWER(filename) LIKE ?
+                    OR LOWER(?) LIKE ('%' || LOWER(filename) || '%')
+                LIMIT 20
+                """,
+                (
+                    filename_clean,
+                    f"%{filename_clean}%",
+                    filename_clean,
+                ),
+            )
+            results = [int(row[0]) for row in cur.fetchall()]
+            return results
+
+    def search_documents_by_filename_wildcard(self, pattern: str) -> list[int]:
+        """
+        Search documents by filename using SQL LIKE pattern.
+        Pattern uses standard wildcards: % (any chars), _ (single char).
+        """
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            cur = self.conn.cursor()
+            sql_pattern = pattern.replace("*", "%").replace("?", "_")
+            cur.execute(
+                """
+                SELECT DISTINCT id FROM documents
+                WHERE LOWER(filename) LIKE ?
+                LIMIT 50
+                """,
+                (sql_pattern.lower(),),
+            )
+            results = [int(row[0]) for row in cur.fetchall()]
+            return results
+
+    def get_all_terms(self) -> list[str]:
+        """Fetch all indexed terms for fuzzy matching cache."""
+        with DBStorage._db_lock:
+            assert self.conn is not None
+            cur = self.conn.cursor()
+            cur.execute("SELECT term FROM terms ORDER BY term")
+            return [row[0] for row in cur.fetchall()]
 
     def get_term_frequency(self, term: str, doc_id: int) -> int:
         with DBStorage._db_lock:
@@ -252,7 +368,9 @@ class DBStorage:
         with DBStorage._db_lock:
             assert self.conn is not None
             cur = self.conn.cursor()
-            cur.execute("SELECT AVG(content_indexed_bytes) FROM documents WHERE content_indexed_bytes > 0")
+            cur.execute(
+                "SELECT AVG(content_indexed_bytes) FROM documents WHERE content_indexed_bytes > 0"
+            )
             result = cur.fetchone()
             avg = float(result[0]) if result and result[0] else 256_000
             return avg if avg > 0 else 256_000

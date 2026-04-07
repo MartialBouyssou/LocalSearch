@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import os
 from pathlib import Path
 from typing import Generator, Optional
@@ -8,7 +7,6 @@ from typing import Generator, Optional
 class FileReader:
     """
     Handles file I/O operations.
-
     - Uses os.walk() so we can prune directories (big perf win on large trees).
     - Supports:
         * ALWAYS_SKIP_DIR_NAMES: never scan
@@ -25,12 +23,15 @@ class FileReader:
         "dist",
         "build",
     }
-
     DEFAULT_SKIP_DIR_NAMES = {
-        ".git", ".hg", ".svn",
-        ".idea", ".vscode",
+        ".git",
+        ".hg",
+        ".svn",
+        ".idea",
+        ".vscode",
         "node_modules",
-        ".venv", "venv",
+        ".venv",
+        "venv",
     }
 
     @staticmethod
@@ -53,25 +54,20 @@ class FileReader:
     ) -> Generator[Path, None, None]:
         """
         Scan directory for files.
-
         Filtering/deciding what to index is done by ContentExtractor.
         This method is purely responsible for walking the filesystem efficiently.
-
         Args:
             skip_hidden: skip hidden files/dirs (starting with '.')
             include_soft_skips: if True, do scan dirs like .venv/node_modules/.git
         """
         if not directory.is_dir():
             return
-
         always_skip = set(FileReader.ALWAYS_SKIP_DIR_NAMES)
         soft_skip = set(FileReader.DEFAULT_SKIP_DIR_NAMES)
-
         if extra_always_skip_dir_names:
             always_skip |= set(extra_always_skip_dir_names)
         if extra_soft_skip_dir_names:
             soft_skip |= set(extra_soft_skip_dir_names)
-
         if not recursive:
             for p in directory.iterdir():
                 if p.is_file():
@@ -79,10 +75,8 @@ class FileReader:
                         continue
                     yield p
             return
-
         for root, dirs, files in os.walk(directory):
             root_path = Path(root)
-
             pruned = []
             for d in list(dirs):
                 if d in always_skip:
@@ -93,7 +87,6 @@ class FileReader:
                     continue
                 pruned.append(d)
             dirs[:] = pruned
-
             for f in files:
                 if skip_hidden and f.startswith("."):
                     continue
@@ -106,7 +99,6 @@ class FileReader:
             size = file_path.stat().st_size
         except OSError:
             size = 0
-
         return {
             "filename": file_path.name,
             "path": str(file_path.parent),
