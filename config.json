@@ -1,5 +1,5 @@
 {
-  "path": "/home/martial",
+  "path": ".",
   "db": "search_index.db",
   "no_watch": false,
   "debounce": 5.0,
