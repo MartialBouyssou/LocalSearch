@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Generator, Optional
@@ -7,6 +8,7 @@ from typing import Generator, Optional
 class FileReader:
     """
     Handles file I/O operations.
+
     - Uses os.walk() so we can prune directories (big perf win on large trees).
     - Supports:
         * ALWAYS_SKIP_DIR_NAMES: never scan
@@ -23,20 +25,26 @@ class FileReader:
         "dist",
         "build",
     }
+
     DEFAULT_SKIP_DIR_NAMES = {
-        ".git",
-        ".hg",
-        ".svn",
-        ".idea",
-        ".vscode",
+        ".git", ".hg", ".svn",
+        ".idea", ".vscode",
         "node_modules",
-        ".venv",
-        "venv",
+        ".venv", "venv",
     }
 
     @staticmethod
     def read_file(file_path: Path, encoding: str = "utf-8") -> Optional[str]:
-        """Safely read file content as text (utf-8)."""
+        """
+        Safely read file content as text with UTF-8 encoding (default).
+        
+        Args:
+            file_path: Path to the file to read.
+            encoding: Text encoding to use (default: UTF-8).
+            
+        Returns:
+            File content as string, or None if read fails.
+        """
         try:
             with open(file_path, "r", encoding=encoding, errors="strict") as f:
                 return f.read()
@@ -53,21 +61,33 @@ class FileReader:
         extra_soft_skip_dir_names: Optional[set[str]] = None,
     ) -> Generator[Path, None, None]:
         """
-        Scan directory for files.
-        Filtering/deciding what to index is done by ContentExtractor.
-        This method is purely responsible for walking the filesystem efficiently.
+        Scan directory and yield file paths efficiently using os.walk().
+        
+        Supports directory pruning to avoid scanning excluded directories (performance win).
+        Filtering decisions are delegated to ContentExtractor.
+        
         Args:
-            skip_hidden: skip hidden files/dirs (starting with '.')
-            include_soft_skips: if True, do scan dirs like .venv/node_modules/.git
+            directory: Root directory to scan.
+            recursive: If True, scan subdirectories; if False, only top level.
+            skip_hidden: Skip hidden files/directories (starting with '.').
+            include_soft_skips: If True, include soft-skip dirs like .venv, .git.
+            extra_always_skip_dir_names: Additional directories to always skip.
+            extra_soft_skip_dir_names: Additional directories to conditionally skip.
+            
+        Yields:
+            Path objects for files in the directory tree.
         """
         if not directory.is_dir():
             return
+
         always_skip = set(FileReader.ALWAYS_SKIP_DIR_NAMES)
         soft_skip = set(FileReader.DEFAULT_SKIP_DIR_NAMES)
+
         if extra_always_skip_dir_names:
             always_skip |= set(extra_always_skip_dir_names)
         if extra_soft_skip_dir_names:
             soft_skip |= set(extra_soft_skip_dir_names)
+
         if not recursive:
             for p in directory.iterdir():
                 if p.is_file():
@@ -75,8 +95,10 @@ class FileReader:
                         continue
                     yield p
             return
+
         for root, dirs, files in os.walk(directory):
             root_path = Path(root)
+
             pruned = []
             for d in list(dirs):
                 if d in always_skip:
@@ -87,6 +109,7 @@ class FileReader:
                     continue
                 pruned.append(d)
             dirs[:] = pruned
+
             for f in files:
                 if skip_hidden and f.startswith("."):
                     continue
@@ -99,6 +122,7 @@ class FileReader:
             size = file_path.stat().st_size
         except OSError:
             size = 0
+
         return {
             "filename": file_path.name,
             "path": str(file_path.parent),

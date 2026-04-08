@@ -1,5 +1,4 @@
 """Tests for AZERTY-aware fuzzy matching."""
-
 import unittest
 import sys
 from pathlib import Path
@@ -7,10 +6,12 @@ from pathlib import Path
 SRC_PATH = str(Path(__file__).resolve().parents[1])
 if SRC_PATH not in sys.path:
     sys.path.insert(0, SRC_PATH)
+
 from src.core.fuzzy_matcher import FuzzyMatcher, _azerty_edit_distance, AZERTY_ADJACENCY
 
 
 class TestAzertyEditDistance(unittest.TestCase):
+
     def test_identical_strings_zero(self):
         self.assertEqual(_azerty_edit_distance("test", "test"), 0)
 
@@ -28,7 +29,7 @@ class TestAzertyEditDistance(unittest.TestCase):
 
     def test_n_b_are_adjacent_on_azerty(self):
         """'n' and 'b' are neighbours on AZERTY — one-char substitution."""
-        self.assertIn("b", AZERTY_ADJACENCY.get("n", set()))
+        self.assertIn('b', AZERTY_ADJACENCY.get('n', set()))
 
     def test_single_adjacent_substitution_at_most_one(self):
         """Replacing one char with its adjacent AZERTY key → distance ≤ 1."""
@@ -49,6 +50,7 @@ class TestAzertyEditDistance(unittest.TestCase):
 
 
 class TestFuzzyMatcherAzerty(unittest.TestCase):
+
     def test_exact_match(self):
         is_match, conf = FuzzyMatcher.is_fuzzy_match("journalctl", "journalctl")
         self.assertTrue(is_match)
@@ -73,6 +75,7 @@ class TestFuzzyMatcherAzerty(unittest.TestCase):
         candidates = ["journalctl", "journal", "other"]
         results = FuzzyMatcher.find_fuzzy_matches(["jourbalctl"], candidates)
         terms = [t for t, _ in results]
+        # journalctl is closest to jourbalctl
         self.assertTrue(len(results) > 0)
         self.assertEqual(terms[0], "journalctl")
 
@@ -83,6 +86,7 @@ class TestFuzzyMatcherAzerty(unittest.TestCase):
     def test_short_terms_excluded(self):
         """Terms shorter than MIN_LENGTH should not be returned."""
         results = FuzzyMatcher.find_fuzzy_matches(["a"], ["ab", "abc"])
+        # 'a' is below MIN_LENGTH so no results
         self.assertEqual(results, [])
 
     def test_prefix_match(self):
@@ -97,6 +101,7 @@ class TestFuzzyMatcherAzerty(unittest.TestCase):
 
 
 class TestFuzzyMatcherPhonetic(unittest.TestCase):
+
     def test_simple_phonetic_collapses_vowels(self):
         """simple_phonetic removes duplicate chars and normalises vowels."""
         s = FuzzyMatcher.simple_phonetic("bonjour")
@@ -105,6 +110,7 @@ class TestFuzzyMatcherPhonetic(unittest.TestCase):
 
     def test_phonetic_match(self):
         """Words that sound similar should match via phonetics."""
+        # 'kafe' vs 'cafe' — after phonetic both become the same
         p1 = FuzzyMatcher.simple_phonetic("kafe")
         p2 = FuzzyMatcher.simple_phonetic("cafe")
         if p1 == p2:

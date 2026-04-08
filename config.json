@@ -1,5 +1,5 @@
 {
-  "path": ".",
+  "path": "/home/martial",
   "db": "search_index.db",
   "no_watch": false,
   "debounce": 5.0,
@@ -8,5 +8,7 @@
   "max_text_bytes": 2097152,
   "sample_bytes": 262144,
   "no_lazy_upgrade": false,
-  "include_soft_skips": false
+  "include_soft_skips": false,
+  "search_timeout_ms": 10000,
+  "use_stemming": false
 }
