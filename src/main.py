@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 from pathlib import Path
 import time
 import os
@@ -10,7 +9,7 @@ import atexit
 
 from src.application.indexing_service import IndexingService
 from src.application.incremental_indexing_service import IncrementalIndexingService
-from src.application.search_engine import SearchEngine
+from src.application.search_engine import SearchEngine, SearchCancelled
 from src.infrastructure.db_storage import DBStorage
 from src.infrastructure.file_reader import FileReader
 from src.infrastructure.content_extractor import ContentExtractor, ExtractorConfig
@@ -20,7 +19,14 @@ from src.infrastructure.search_context import SearchContext
 
 
 def _init_readline(search_context: SearchContext) -> None:
-    """Initialize readline with history file and autocomplete."""
+    """
+    Initialize readline with command history and autocompletion for the interactive shell.
+    
+    Sets up history persistence and enables tab-completion for :cd paths.
+    
+    Args:
+        search_context: Search context containing current search directory.
+    """
     history_file = Path.home() / ".localsearch_history"
     try:
         readline.read_history_file(str(history_file))
@@ -32,7 +38,7 @@ def _init_readline(search_context: SearchContext) -> None:
     readline.set_completer_delims(" \t\n")
     
     def completer(text: str, state: int) -> str | None:
-        """Autocomplete for :cd command."""
+        """Auto-completion function for readline (tab-completion of :cd paths)."""
         line = readline.get_line_buffer()
         
         if not line.startswith(":cd"):
@@ -55,7 +61,19 @@ def _init_readline(search_context: SearchContext) -> None:
 
 
 def _get_path_completions(partial_path: str, search_context: SearchContext) -> list[str]:
-    """Get all path completions for a given partial path."""
+    """
+    Generate path completions for a given partial path input.
+    
+    Returns relative directory paths that start with the given prefix,
+    bounded by the search root directory.
+    
+    Args:
+        partial_path: Partial path string entered by user.
+        search_context: Search context with root and current directories.
+        
+    Returns:
+        List of relative directory paths starting with the prefix.
+    """
     try:
         if "/" in partial_path:
             last_slash = partial_path.rfind("/")
@@ -93,6 +111,12 @@ def _get_path_completions(partial_path: str, search_context: SearchContext) -> l
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Build the command-line argument parser for the application.
+
+    Returns:
+        Configured ArgumentParser instance with all supported CLI options.
+    """
     p = argparse.ArgumentParser(prog="LocalSearch", description="Local file search engine (SQLite).")
     p.add_argument("--config", default="config.json", help="Configuration file path.")
     p.add_argument("--db", default=None, help="SQLite database path.")
@@ -175,15 +199,30 @@ def interactive_loop(
 
         print("[*] Searching...", end="", flush=True)
         start = time.time()
-        results = engine.search(q, top_k=cfg.topk, lazy_upgrade=not cfg.no_lazy_upgrade)
+        try:
+            results = engine.search(
+                q,
+                top_k=cfg.topk,
+                lazy_upgrade=not cfg.no_lazy_upgrade,
+                timeout_ms=cfg.search_timeout_ms,
+            )
+        except SearchCancelled:
+            elapsed = time.time() - start
+            print(f"\r[!] Search cancelled. ({elapsed:.2f}s)\n")
+            continue
+        except KeyboardInterrupt:
+            engine.cancel()
+            elapsed = time.time() - start
+            print(f"\r[!] Search interrupted. ({elapsed:.2f}s)\n")
+            continue
         elapsed = time.time() - start
-        
+
         current_path = context.current
         filtered_results = [
             r for r in results
             if Path(r.document.path).resolve().is_relative_to(current_path)
         ]
-        
+
         if not filtered_results:
             print(f"\r[X] No results found. ({elapsed:.2f}s)\n")
             continue
@@ -201,6 +240,7 @@ def interactive_loop(
         watcher.stop_watching()
 
 def clear():
+    """Clear the terminal screen."""
     os.system("clear" if os.name == "posix" else "cls")
 
 
@@ -240,6 +280,7 @@ def main() -> None:
             recursive=True,
             commit_every=cfg.commit_every,
             include_soft_skips=cfg.include_soft_skips,
+            use_stemming=cfg.use_stemming,
         )
         elapsed = time.time() - start
         print(f"[*] Completed in {elapsed:.2f}s\n")
@@ -250,7 +291,16 @@ def main() -> None:
         
         engine = SearchEngine(db_storage=db, extractor=extractor)
         try:
-            results = engine.search(args.search, top_k=cfg.topk, lazy_upgrade=not cfg.no_lazy_upgrade)
+            results = engine.search(
+                args.search,
+                top_k=cfg.topk,
+                lazy_upgrade=not cfg.no_lazy_upgrade,
+                timeout_ms=cfg.search_timeout_ms,
+            )
+        except SearchCancelled:
+            print("\r[!] Search timed out.")
+            engine.close()
+            return
         finally:
             engine.close()
 

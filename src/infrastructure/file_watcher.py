@@ -16,6 +16,12 @@ class DebouncedFileWatcher:
     """
 
     def __init__(self, debounce_seconds: float = 5.0):
+        """
+        Initialize the debounced file watcher.
+        
+        Args:
+            debounce_seconds: Number of seconds to wait before triggering callback.
+        """
         self.debounce_seconds = debounce_seconds
         self.observer: Optional[Observer] = None
 
@@ -52,7 +58,7 @@ class DebouncedFileWatcher:
         self.observer.start()
 
     def stop_watching(self) -> None:
-        """Stop watching and flush pending changes."""
+        """Stop watching the filesystem and ensure pending changes are processed."""
         if self.observer:
             self.observer.stop()
             self.observer.join()
@@ -80,7 +86,7 @@ class DebouncedFileWatcher:
             self.debounce_timer.start()
 
     def _flush_pending(self) -> None:
-        """Fire callback with all pending changes."""
+        """Trigger the callback with all accumulated pending changes."""
         with self.pending_lock:
             if not self.pending_changes:
                 return
@@ -93,19 +99,22 @@ class DebouncedFileWatcher:
 
 
 class _DebounceHandler(FileSystemEventHandler):
-    """Internal watchdog handler."""
+    """Internal watchdog filesystem event handler for the file watcher."""
 
     def __init__(self, watcher: DebouncedFileWatcher):
         self.watcher = watcher
 
     def on_created(self, event: FileCreatedEvent) -> None:
+        """Handle file creation event."""
         if not event.is_directory:
             self.watcher._on_file_event("created", event.src_path)
 
     def on_deleted(self, event: FileDeletedEvent) -> None:
+        """Handle file deletion event."""
         if not event.is_directory:
             self.watcher._on_file_event("deleted", event.src_path)
 
     def on_modified(self, event: FileModifiedEvent) -> None:
+        """Handle file modification event."""
         if not event.is_directory:
             self.watcher._on_file_event("modified", event.src_path)

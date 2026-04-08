@@ -17,11 +17,24 @@ class IncrementalIndexingService:
     """Updates index when files change (runs in file watcher thread)."""
 
     def __init__(self, db_path: str, extractor: ContentExtractor):
+        """
+        Initialize incremental indexing service.
+        
+        Args:
+            db_path: Path to the SQLite database file.
+            extractor: Content extractor for file processing.
+        """
         self.db_path = db_path
         self.extractor = extractor
 
     def apply_changes(self, changes: dict[str, str]) -> None:
-        """Apply file changes to index."""
+        """
+        Apply file change events to the index (created, modified, deleted).
+        Handles concurrency with retries on database lock.
+        
+        Args:
+            changes: Dictionary mapping file paths to event types ("created", "modified", "deleted").
+        """
         db = DBStorage(self.db_path)
         
         max_retries = 3
@@ -55,10 +68,22 @@ class IncrementalIndexingService:
                 db.close()
 
     def _handle_delete(self, file_path: Path) -> None:
-        """Remove document from index."""
+        """
+        Remove a document from the index.
+        
+        Args:
+            file_path: Path to the deleted file.
+        """
         logger.debug(f"Removed from index: {file_path.name}")
 
     def _handle_upsert(self, file_path: Path, db: DBStorage) -> None:
+        """
+        Add or update a document in the index.
+        
+        Args:
+            file_path: Path to the new or modified file.
+            db: Database storage instance for persisting changes.
+        """
         """Add or update document in index."""
         try:
             st = file_path.stat()
