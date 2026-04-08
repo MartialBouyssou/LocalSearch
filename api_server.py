@@ -3,6 +3,7 @@ import argparse
 from src.api.main import create_app
 
 def main():
+    """Main entry point for the LocalSearch API server."""
     parser = argparse.ArgumentParser(description="LocalSearch API Server")
     parser.add_argument("--config", default="config.json", help="Config file path")
     parser.add_argument("--host", default="0.0.0.0", help="Server host")

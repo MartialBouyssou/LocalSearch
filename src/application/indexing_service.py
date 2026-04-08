@@ -1,4 +1,3 @@
-"""Indexing service for building the search index."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,6 +10,13 @@ from src.infrastructure.content_extractor import ContentExtractor
 
 class IndexingService:
     def __init__(self, db_storage: DBStorage, extractor: ContentExtractor):
+        """
+        Initialize the indexing service.
+        
+        Args:
+            db_storage: Database storage instance for persisting index.
+            extractor: Content extractor for file processing.
+        """
         self.db = db_storage
         self.extractor = extractor
 
@@ -20,8 +26,21 @@ class IndexingService:
         recursive: bool = True,
         commit_every: int = 500,
         include_soft_skips: bool = False,
+        use_stemming: bool = False,
     ) -> int:
-        """Index all files in directory."""
+        """
+        Index all files in a directory, extracting text and building the inverted index.
+        
+        Args:
+            directory: Root directory to index.
+            recursive: If True, index subdirectories; if False, only top level.
+            commit_every: Commit to database every N files (batch size).
+            include_soft_skips: If True, include soft-skip directories like .venv.
+            use_stemming: If True, expand tokens with French/English stems.
+            
+        Returns:
+            Total number of files indexed.
+        """
         from src.infrastructure.file_reader import FileReader
 
         reader = FileReader()
@@ -50,9 +69,11 @@ class IndexingService:
                 )
 
                 tokens = []
-                tokens.extend(Tokenizer.tokenize_filename(file_path.name))
+                filename_lower = file_path.name.lower()
+                tokens.append(filename_lower)
+                tokens.extend(Tokenizer.tokenize_filename_with_stems(file_path.name, use_stemming=use_stemming))
                 if extracted.text:
-                    tokens.extend(Tokenizer.tokenize(extracted.text))
+                    tokens.extend(Tokenizer.tokenize_with_stems(extracted.text, use_stemming=use_stemming))
 
                 freq = Counter(tokens)
                 if freq:

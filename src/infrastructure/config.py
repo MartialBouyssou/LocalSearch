@@ -18,10 +18,20 @@ class Config:
     no_lazy_upgrade: bool = False
     include_soft_skips: bool = False
     no_watch: bool = False
+    use_stemming: bool = False
+    search_timeout_ms: int = 5000
 
     @classmethod
     def load(cls, config_file: str = "config.json") -> Config:
-        """Load configuration from JSON file, or use defaults if not found."""
+        """
+        Load configuration from a JSON file, or return defaults if file not found.
+        
+        Args:
+            config_file: Path to the JSON configuration file.
+            
+        Returns:
+            Config instance with loaded values or defaults.
+        """
         config_path = Path(config_file)
         
         if config_path.exists():
@@ -37,14 +47,27 @@ class Config:
             return cls()
 
     def save(self, config_file: str = "config.json") -> None:
-        """Save configuration to JSON file."""
+        """
+        Save the current configuration to a JSON file.
+        
+        Args:
+            config_file: Path to the JSON file to save to.
+        """
         config_path = Path(config_file)
         with open(config_path, "w") as f:
             json.dump(asdict(self), f, indent=2)
         print(f"[*] Configuration saved to {config_file}")
 
     def merge_args(self, args) -> Config:
-        """Merge CLI args into config (args override config file)."""
+        """
+        Merge CLI arguments into configuration (arguments override config file values).
+        
+        Args:
+            args: Parsed command-line arguments object.
+            
+        Returns:
+            New Config instance with merged values.
+        """
         updates = {}
 
         for field in self.__dataclass_fields__:

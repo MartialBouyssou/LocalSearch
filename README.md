@@ -12,6 +12,9 @@ It builds an index in SQLite, ranks results with BM25, and supports incremental 
 - Incremental indexing with filesystem watcher and debounce
 - SQLite-based persistence
 - Lazy upgrade for partially indexed large documents
+- Multi-level matching (exact, prefix, fuzzy, wildcard filename/content)
+- Search timeout and cancellation support (CLI + API)
+- Optional stemming (French/English) during indexing
 - REST API (FastAPI) for health, search, and indexing operations
 
 ## Project Status
@@ -62,7 +65,9 @@ Example:
   "debounce": 5.0,
   "no_lazy_upgrade": false,
   "include_soft_skips": false,
-  "no_watch": false
+  "no_watch": false,
+  "search_timeout_ms": 5000,
+  "use_stemming": false
 }
 ```
 
@@ -121,8 +126,10 @@ Search:
 ```bash
 curl -X POST http://localhost:8000/search \
   -H "Content-Type: application/json" \
-  -d '{"query":"python tokenizer", "top_k":10}'
+  -d '{"query":"python tokenizer", "top_k":10, "timeout_ms":5000}'
 ```
+
+If the request exceeds the timeout, the API returns HTTP 408.
 
 Trigger full reindex in background:
 
@@ -222,6 +229,11 @@ Search results are filtered to the current directory scope shown in the prompt.
 --debounce         Debounce seconds for watcher events
 --save-config      Save merged config and exit
 ```
+
+## Configuration Notes
+
+- `search_timeout_ms`: timeout applied to one-shot and interactive searches, and used as default timeout in API search.
+- `use_stemming`: enables French/English stemming expansion at indexing time for better recall.
 
 ## Indexed Content
 

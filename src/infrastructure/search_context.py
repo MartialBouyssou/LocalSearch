@@ -12,9 +12,13 @@ class SearchContext:
 
     def cd(self, path: str) -> tuple[bool, str]:
         """
-        Change directory within the index root.
+        Change the current directory within the index root.
         
-        Returns: (success, message)
+        Args:
+            path: Target directory path (relative or absolute).
+            
+        Returns:
+            Tuple of (success, message). Success=True if directory changed, False otherwise.
         """
         if path == "" or path == "/":
             self.current = self.root
@@ -46,7 +50,7 @@ class SearchContext:
         return str(self.current)
 
     def get_relative_current(self) -> str:
-        """Get current path relative to root."""
+        """Get the current directory path relative to the search root."""
         try:
             return str(self.current.relative_to(self.root))
         except ValueError:

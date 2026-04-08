@@ -9,7 +9,16 @@ from src.api.routes import search, indexing, health
 
 def create_app(config_path: str = "config.json"):
     """
-    Factory function pour créer l'app FastAPI.
+    Factory function to create and configure the FastAPI application.
+    
+    Initializes all components: database, file reader, content extractor, and search engine.
+    Registers all API routes and sets up shutdown cleanup.
+    
+    Args:
+        config_path: Path to the configuration JSON file.
+        
+    Returns:
+        Initialized FastAPI application instance.
     """
     app = FastAPI(
         title="LocalSearch API",
@@ -47,7 +56,7 @@ def create_app(config_path: str = "config.json"):
     
     @app.on_event("shutdown")
     async def shutdown():
-        """Cleanup on shutdown."""
+        """Clean up resources on server shutdown."""
         engine.close()
     
     return app

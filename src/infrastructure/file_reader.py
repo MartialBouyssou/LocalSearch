@@ -35,7 +35,16 @@ class FileReader:
 
     @staticmethod
     def read_file(file_path: Path, encoding: str = "utf-8") -> Optional[str]:
-        """Safely read file content as text (utf-8)."""
+        """
+        Safely read file content as text with UTF-8 encoding (default).
+        
+        Args:
+            file_path: Path to the file to read.
+            encoding: Text encoding to use (default: UTF-8).
+            
+        Returns:
+            File content as string, or None if read fails.
+        """
         try:
             with open(file_path, "r", encoding=encoding, errors="strict") as f:
                 return f.read()
@@ -52,14 +61,21 @@ class FileReader:
         extra_soft_skip_dir_names: Optional[set[str]] = None,
     ) -> Generator[Path, None, None]:
         """
-        Scan directory for files.
-
-        Filtering/deciding what to index is done by ContentExtractor.
-        This method is purely responsible for walking the filesystem efficiently.
-
+        Scan directory and yield file paths efficiently using os.walk().
+        
+        Supports directory pruning to avoid scanning excluded directories (performance win).
+        Filtering decisions are delegated to ContentExtractor.
+        
         Args:
-            skip_hidden: skip hidden files/dirs (starting with '.')
-            include_soft_skips: if True, do scan dirs like .venv/node_modules/.git
+            directory: Root directory to scan.
+            recursive: If True, scan subdirectories; if False, only top level.
+            skip_hidden: Skip hidden files/directories (starting with '.').
+            include_soft_skips: If True, include soft-skip dirs like .venv, .git.
+            extra_always_skip_dir_names: Additional directories to always skip.
+            extra_soft_skip_dir_names: Additional directories to conditionally skip.
+            
+        Yields:
+            Path objects for files in the directory tree.
         """
         if not directory.is_dir():
             return
