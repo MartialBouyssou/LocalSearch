@@ -56,6 +56,20 @@ class ContentExtractor:
         self.cfg = cfg
 
     def extract(self, file_path: Path) -> ExtractedContent:
+        """
+        Extract searchable text from a file based on its extension.
+
+        The extractor skips known binary and internal database files, reads text
+        files with a size cap, samples large CSV/TSV files, and delegates PDF
+        and ODT parsing to specialized helpers.
+
+        Args:
+            file_path: Path to the file to extract.
+
+        Returns:
+            ExtractedContent containing the extracted text and a flag indicating
+            whether the content was truncated.
+        """
         ext = file_path.suffix.lower()
 
         if file_path.name in self.ALWAYS_SKIP_FILES:
@@ -82,6 +96,15 @@ class ContentExtractor:
         return ExtractedContent(text="", partial=False)
 
     def _extract_text_capped(self, file_path: Path) -> ExtractedContent:
+        """
+        Extract text from a file, capping at max_text_bytes.
+        
+        Args:
+            file_path: Path to the text file.
+            
+        Returns:
+            ExtractedContent with truncated text if needed.
+        """
         try:
             with open(file_path, "rb") as f:
                 data = f.read(self.cfg.max_text_bytes + 1)
@@ -92,6 +115,15 @@ class ContentExtractor:
             return ExtractedContent(text="", partial=False)
 
     def _extract_large_text_sample(self, file_path: Path) -> ExtractedContent:
+        """
+        Extract a sample from a large text file (sample_bytes limit).
+        
+        Args:
+            file_path: Path to the large text file.
+            
+        Returns:
+            ExtractedContent with sample text and partial=True.
+        """
         try:
             with open(file_path, "rb") as f:
                 data = f.read(self.cfg.sample_bytes + 1)
@@ -126,6 +158,17 @@ class ContentExtractor:
             return ""
 
     def _extract_odt_text(self, file_path: Path) -> str:
+        """
+        Extract text from an ODT (OpenDocument Text) file.
+        
+        Parses the XML content within the ZIP archive and extracts text nodes.
+        
+        Args:
+            file_path: Path to the ODT file.
+            
+        Returns:
+            Extracted text from the ODT document.
+        """
         try:
             with zipfile.ZipFile(file_path, "r") as z:
                 with z.open("content.xml") as f:

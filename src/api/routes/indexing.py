@@ -15,13 +15,21 @@ _config = None
 _reindex_status = {"running": False, "progress": "idle"}
 
 def init_indexing(db_storage: DBStorage, extractor: ContentExtractor, config: Config):
+    """
+    Initialize the indexing route with storage, extractor, and configuration.
+    
+    Args:
+        db_storage: Database storage instance.
+        extractor: Content extractor instance.
+        config: Application configuration.
+    """
     global _db_storage, _extractor, _config
     _db_storage = db_storage
     _extractor = extractor
     _config = config
 
 def _reindex_task(include_soft_skips: bool):
-    """Tâche en arrière-plan pour l'indexation."""
+    """Background task for re-indexing files."""
     global _reindex_status
     try:
         _reindex_status["running"] = True
@@ -47,8 +55,8 @@ def _reindex_task(include_soft_skips: bool):
 @router.post("/reindex")
 async def reindex(request: ReindexRequest, background_tasks: BackgroundTasks):
     """
-    Lance une réindexation complète.
-    S'exécute en arrière-plan.
+    Trigger a complete re-indexing of files.
+    Executes asynchronously in the background.
     """
     if _reindex_status["running"]:
         raise HTTPException(status_code=409, detail="Reindex already running")
@@ -63,7 +71,7 @@ async def reindex(request: ReindexRequest, background_tasks: BackgroundTasks):
 @router.get("/status", response_model=StatusResponse)
 async def status():
     """
-    Retourne le statut actuel.
+    Get the current indexing status and database information.
     """
     if _config is None:
         raise HTTPException(status_code=500, detail="Config not initialized")
@@ -79,7 +87,7 @@ async def status():
 @router.get("/reindex-status")
 async def reindex_status():
     """
-    Retourne le statut de la réindexation en cours.
+    Get the current re-indexing status and progress.
     """
     return {
         "running": _reindex_status["running"],
