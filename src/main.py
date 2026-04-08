@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 from dataclasses import asdict
 from pathlib import Path
 import time
 import os
 import readline
 import atexit
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from src.application.indexing_service import IndexingService
 from src.application.incremental_indexing_service import IncrementalIndexingService
@@ -17,6 +21,200 @@ from src.infrastructure.content_extractor import ContentExtractor, ExtractorConf
 from src.infrastructure.file_watcher import DebouncedFileWatcher
 from src.infrastructure.config import Config
 from src.infrastructure.search_context import SearchContext
+
+
+def _get_current_tag() -> str | None:
+    """Return the current git tag if available."""
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    tag = result.stdout.strip()
+    return tag or None
+
+
+def _get_github_repo_slug() -> str | None:
+    """Extract owner/repo from git remote origin if hosted on GitHub."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    remote_url = result.stdout.strip()
+    if not remote_url:
+        return None
+
+    if remote_url.startswith("git@github.com:"):
+        slug = remote_url.split("git@github.com:", 1)[1]
+    elif "github.com/" in remote_url:
+        slug = remote_url.split("github.com/", 1)[1]
+    else:
+        return None
+
+    slug = slug.strip().rstrip("/")
+    if slug.endswith(".git"):
+        slug = slug[:-4]
+
+    if "/" not in slug:
+        return None
+
+    return slug
+
+
+def _parse_semver(version: str) -> tuple[tuple[int, ...], tuple[str, ...]] | None:
+    """Parse a semver-like tag such as v3.0.0-beta.1."""
+    if not version:
+        return None
+
+    cleaned = version.strip().lstrip("vV")
+    if not cleaned:
+        return None
+
+    cleaned = cleaned.split("+", 1)[0]
+    core_part, sep, prerelease_part = cleaned.partition("-")
+
+    core_numbers: list[int] = []
+    for segment in core_part.split("."):
+        if not segment.isdigit():
+            return None
+        core_numbers.append(int(segment))
+
+    prerelease_segments: tuple[str, ...] = ()
+    if sep:
+        prerelease_segments = tuple(s for s in prerelease_part.split(".") if s)
+
+    return tuple(core_numbers), prerelease_segments
+
+
+def _compare_prerelease(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    """Compare semver prerelease segments."""
+    if not left and not right:
+        return 0
+    if not left:
+        return 1
+    if not right:
+        return -1
+
+    max_len = max(len(left), len(right))
+    for i in range(max_len):
+        if i >= len(left):
+            return -1
+        if i >= len(right):
+            return 1
+
+        l_seg = left[i]
+        r_seg = right[i]
+        if l_seg == r_seg:
+            continue
+
+        l_is_num = l_seg.isdigit()
+        r_is_num = r_seg.isdigit()
+
+        if l_is_num and r_is_num:
+            l_num = int(l_seg)
+            r_num = int(r_seg)
+            if l_num < r_num:
+                return -1
+            if l_num > r_num:
+                return 1
+            continue
+
+        if l_is_num and not r_is_num:
+            return -1
+        if not l_is_num and r_is_num:
+            return 1
+
+        if l_seg < r_seg:
+            return -1
+        return 1
+
+    return 0
+
+
+def _is_version_newer(candidate: str, current: str) -> bool:
+    """Return True when candidate tag is newer than current tag."""
+    parsed_candidate = _parse_semver(candidate)
+    parsed_current = _parse_semver(current)
+    if not parsed_candidate or not parsed_current:
+        return False
+
+    candidate_core, candidate_pre = parsed_candidate
+    current_core, current_pre = parsed_current
+
+    max_len = max(len(candidate_core), len(current_core))
+    for i in range(max_len):
+        left = candidate_core[i] if i < len(candidate_core) else 0
+        right = current_core[i] if i < len(current_core) else 0
+        if left > right:
+            return True
+        if left < right:
+            return False
+
+    return _compare_prerelease(candidate_pre, current_pre) > 0
+
+
+def _fetch_latest_github_release_tag(repo_slug: str, timeout_seconds: float = 1.5) -> str | None:
+    """Fetch latest release tag from GitHub API."""
+    url = f"https://api.github.com/repos/{repo_slug}/releases/latest"
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "LocalSearch-release-check",
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return None
+
+    tag_name = payload.get("tag_name")
+    if not isinstance(tag_name, str):
+        return None
+
+    tag_name = tag_name.strip()
+    return tag_name or None
+
+
+def _notify_if_new_release_available() -> None:
+    """Print startup message when a newer GitHub release is available."""
+    current_tag = _get_current_tag()
+    if not current_tag:
+        return
+
+    repo_slug = _get_github_repo_slug()
+    if not repo_slug:
+        return
+
+    latest_tag = _fetch_latest_github_release_tag(repo_slug)
+    if not latest_tag:
+        return
+
+    if _is_version_newer(latest_tag, current_tag):
+        print(
+            f"[!] New GitHub release available: {latest_tag} "
+            f"(current: {current_tag})"
+        )
+        print(f"    https://github.com/{repo_slug}/releases/latest\n")
 
 
 def _init_readline(search_context: SearchContext) -> None:
@@ -206,6 +404,8 @@ def clear():
 
 def main() -> None:
     args = build_parser().parse_args()
+
+    _notify_if_new_release_available()
     
     cfg = Config.load(args.config)
     cfg = cfg.merge_args(args)
