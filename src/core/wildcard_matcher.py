@@ -84,18 +84,9 @@ class WildcardMatcher:
         for candidate in candidates:
             if compiled.match(candidate.lower()):
                 matches.append((candidate, 1.0))
-                if len(matches)  portion, and suffix from a glob pattern.
+                if len(matches) >= max_results:
+                    break
         
-        Examples:
-            "journal*" -> ("journal", "*", "")
-            "test?.txt" -> ("test", "?", ".txt")
-            "[abc]def" -> ("", "[abc]", "def")
-        
-        Args:
-            pattern: Glob pattern string.
-            
-        Returns:
-            Tuple of (prefix, wildcard, suffix).
         return matches
     
     @staticmethod
